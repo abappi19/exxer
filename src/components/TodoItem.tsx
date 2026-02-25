@@ -1,7 +1,7 @@
 import { withObservables } from '@nozbe/watermelondb/react';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Todo, TodoSyncStatus } from '../db/models/Todo';
+import { Todo, TodoSyncState } from '../db/models/Todo';
 import { manualSyncService } from '../sync/ManualSyncService';
 
 interface TodoItemProps {
@@ -14,20 +14,19 @@ interface TodoItemProps {
 function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
     const imageUri = todo.imageUri;
 
-    // Map sync status to readable text
-    const getSyncStatusText = (status: TodoSyncStatus, hasError: boolean) => {
-        if (hasError) return '✖ Sync Failed';
-        switch (status) {
+    // Map sync state to readable text
+    const getSyncStateText = (state: TodoSyncState) => {
+        switch (state) {
             case 'synced': return '✓ Synced';
-            case 'created':
-            case 'updated': return '⏳ Pending Sync';
+            case 'pending': return '⏳ Pending Sync';
+            case 'error': return '✖ Sync Failed';
             case 'deleted': return '🗑 Deleting...';
             default: return 'Unknown';
         }
     };
 
-    const isPending = todo.syncStatus !== 'synced' && !todo.syncError;
-    const hasError = !!todo.syncError;
+    const isPending = todo.syncState === 'pending';
+    const hasError = todo.syncState === 'error';
 
     return (
         <TouchableOpacity
@@ -60,7 +59,7 @@ function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
                             isPending && styles.syncPending,
                             hasError && styles.syncError
                         ]}>
-                            {getSyncStatusText(todo.syncStatus, hasError)}
+                            {getSyncStateText(todo.syncState)}
                         </Text>
 
                         {hasError && (

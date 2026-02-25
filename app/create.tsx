@@ -43,6 +43,7 @@ export default function CreateTodoScreen() {
                     record.imageLocalUri = imageUri || '';
                     record.imageRemoteUrl = '';
                     record.imageUploadStatus = imageUri ? 'pending' : 'none';
+                    record.manualSyncStatus = 'pending';
                 });
             });
 

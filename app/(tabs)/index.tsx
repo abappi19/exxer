@@ -22,6 +22,7 @@ export default function TodosScreen() {
     await database.write(async () => {
       await todo.update((record) => {
         record.isDone = !record.isDone;
+        record.manualSyncStatus = 'pending';
       });
     });
     triggerSync();

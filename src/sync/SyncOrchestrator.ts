@@ -40,6 +40,18 @@ export class SyncOrchestrator {
         }
     }
 
+    /** Trigger a sync for a specific record. */
+    async triggerSyncOne(id: string): Promise<void> {
+        // We don't necessarily block this behind _isSyncing because it's targeted,
+        // but we'll use a simple guard to avoid spamming the same ID.
+        try {
+            console.log(`[SyncOrchestrator] Starting sync for ${id}...`);
+            await manualSyncService.syncOne(id);
+        } catch (error) {
+            console.error(`[SyncOrchestrator] SyncOne (${id}) failed:`, error);
+        }
+    }
+
     /** Start listening for network reconnection and auto-trigger sync. */
     startNetworkListener(): void {
         if (this._unsubscribe) return; // already listening

@@ -12,5 +12,15 @@ export const migrations = schemaMigrations({
                 },
             ],
         },
+        {
+            toVersion: 3,
+            steps: [
+                {
+                    type: 'add_columns',
+                    table: 'todos',
+                    columns: [{ name: 'manual_sync_status', type: 'string' }],
+                },
+            ],
+        },
     ],
 });

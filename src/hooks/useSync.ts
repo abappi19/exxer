@@ -7,8 +7,10 @@ interface UseSyncResult {
     isSyncing: boolean;
     /** Last successful sync timestamp, or null. */
     lastSyncedAt: Date | null;
-    /** Manually trigger a sync cycle. */
+    /** Manually trigger a full sync cycle. */
     triggerSync: () => Promise<void>;
+    /** Manually trigger a localized sync for one record. */
+    triggerSyncOne: (id: string) => Promise<void>;
 }
 
 /**
@@ -41,5 +43,9 @@ export function useSync(): UseSyncResult {
         }
     }, []);
 
-    return { isSyncing, lastSyncedAt, triggerSync };
+    const triggerSyncOne = useCallback(async (id: string) => {
+        await syncOrchestrator.triggerSyncOne(id);
+    }, []);
+
+    return { isSyncing, lastSyncedAt, triggerSync, triggerSyncOne };
 }

@@ -34,13 +34,16 @@ function ensureDir() {
 // Load data from file
 function load() {
     try {
+        ensureDir();
         if (fs.existsSync(DATA_FILE)) {
             const data = fs.readFileSync(DATA_FILE, 'utf8');
             const list = JSON.parse(data) as TodoRecord[];
             todos = new Map(list.map(t => [t.id, t]));
 
             // Update nextId based on server_ IDs
-            const serverIds = list.map(t => parseInt(t.id.replace('server_', ''))).filter(n => !isNaN(n));
+            const serverIds = list
+                .map(t => parseInt(t.id.replace('server_', '')))
+                .filter(n => !isNaN(n));
             if (serverIds.length > 0) {
                 nextId = Math.max(...serverIds) + 1;
             }
@@ -119,14 +122,34 @@ export function create(data: Partial<TodoRecord> & { title: string }): TodoRecor
     return record;
 }
 
-export function update(id: string, data: Partial<TodoRecord>): TodoRecord | null {
+/**
+ * Update a record by ID.
+ * If not found, it performs an upsert to handle demo server restarts.
+ */
+export function update(id: string, data: Partial<TodoRecord>): TodoRecord {
     const existing = todos.get(id);
-    if (!existing) return null;
-    const updated = { ...existing, ...data, updated_at: Date.now() };
-    todos.set(id, updated);
-    lastModified = updated.updated_at;
+    const now = Date.now();
+
+    // Effectively an upsert logic
+    const record: TodoRecord = existing
+        ? { ...existing, ...data, updated_at: now }
+        : {
+            id,
+            title: '',
+            body: '',
+            is_done: false,
+            image_local_uri: null,
+            image_remote_url: null,
+            image_upload_status: 'none',
+            created_at: now,
+            ...data,
+            updated_at: now
+        } as TodoRecord;
+
+    todos.set(id, record);
+    lastModified = now;
     save();
-    return updated;
+    return record;
 }
 
 export function remove(id: string): boolean {

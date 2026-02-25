@@ -12,17 +12,20 @@ import {
 
 import { database } from '@/src/db/database';
 import { Todo } from '@/src/db/models';
+import { useSync } from '@/src/hooks/useSync';
 import { imageUploadService } from '@/src/image/ImageUploadService';
 import { syncOrchestrator } from '@/src/sync/SyncOrchestrator';
 
 export default function TodoDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
+    const { triggerSyncOne } = useSync();
     const [todo, setTodo] = useState<Todo | null>(null);
 
     useEffect(() => {
         if (!id) return;
 
+        // Reactive subscription to local DB
         const subscription = database
             .get<Todo>('todos')
             .findAndObserve(id)
@@ -34,8 +37,11 @@ export default function TodoDetailScreen() {
                 },
             });
 
+        // On-demand fetch from server (Lazy Sync)
+        triggerSyncOne(id);
+
         return () => subscription.unsubscribe();
-    }, [id]);
+    }, [id, triggerSyncOne]);
 
     if (!todo) {
         return (
@@ -52,6 +58,7 @@ export default function TodoDetailScreen() {
         await database.write(async () => {
             await todo.update((r) => {
                 r.isDone = !r.isDone;
+                r.manualSyncStatus = 'pending';
             });
         });
         syncOrchestrator.triggerSync();
@@ -95,6 +102,17 @@ export default function TodoDetailScreen() {
                         {todo.isDone ? '✓ Done' : '○ Todo'}
                     </Text>
                 </TouchableOpacity>
+
+                {todo.syncState !== 'synced' && (
+                    <View style={styles.syncLabel}>
+                        <Text style={[
+                            styles.syncLabelText,
+                            todo.syncState === 'error' && styles.errorLabelText
+                        ]}>
+                            {todo.syncState === 'error' ? '✖ Sync Failed' : '⏳ Pending Sync'}
+                        </Text>
+                    </View>
+                )}
             </View>
 
             {/* Title */}
@@ -121,6 +139,11 @@ export default function TodoDetailScreen() {
                 <Text style={styles.metaText}>
                     Updated: {todo.updatedAt.toLocaleString()}
                 </Text>
+                {todo.syncError && (
+                    <Text style={styles.errorText}>
+                        Last Sync Error: {todo.syncError}
+                    </Text>
+                )}
             </View>
 
             {/* Delete */}
@@ -148,6 +171,7 @@ const styles = StyleSheet.create({
     },
     statusRow: {
         flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 16,
     },
     statusChip: {
@@ -163,6 +187,17 @@ const styles = StyleSheet.create({
         color: '#F2F2F7',
         fontSize: 14,
         fontWeight: '600',
+    },
+    syncLabel: {
+        marginLeft: 12,
+    },
+    syncLabelText: {
+        color: '#FF9F0A',
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    errorLabelText: {
+        color: '#FF3B30',
     },
     title: {
         color: '#F2F2F7',
@@ -201,6 +236,11 @@ const styles = StyleSheet.create({
         color: '#636366',
         fontSize: 12,
         marginBottom: 4,
+    },
+    errorText: {
+        color: '#FF3B30',
+        fontSize: 12,
+        marginTop: 4,
     },
     deleteButton: {
         backgroundColor: '#FF3B301A',

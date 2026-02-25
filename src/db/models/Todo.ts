@@ -1,7 +1,7 @@
 import { Model } from '@nozbe/watermelondb';
 import { date, field } from '@nozbe/watermelondb/decorators';
 
-export type TodoSyncStatus = 'synced' | 'created' | 'updated' | 'deleted';
+export type TodoSyncState = 'synced' | 'pending' | 'error' | 'deleted';
 
 /** A Todo item — the core domain model for this starter. */
 export class Todo extends Model {
@@ -14,15 +14,18 @@ export class Todo extends Model {
     @field('image_remote_url') imageRemoteUrl!: string | null;
     @field('image_upload_status') imageUploadStatus!: 'none' | 'pending' | 'done';
     @field('sync_error') syncError!: string | null;
+    @field('manual_sync_status') manualSyncStatus!: TodoSyncState;
     @date('created_at') createdAt!: Date;
     @date('updated_at') updatedAt!: Date;
 
     /** 
-     * Expose WatermelonDB's internal sync status.
-     * Note: We access this via _raw to ensure we get the latest value.
+     * Custom sync state for UI indicators.
+     * Renamed from syncStatus to avoid conflict with Base Model.
      */
-    get syncStatus(): TodoSyncStatus {
-        return (this._raw as any)._status || 'synced';
+    get syncState(): TodoSyncState {
+        if ((this as any)._status === 'deleted') return 'deleted';
+        // handle migrations/initial states where it might be null
+        return this.manualSyncStatus || 'pending';
     }
 
     /** Resolved image URI — prefers remote URL, falls back to local. */

@@ -1,7 +1,16 @@
-import { create, getAll, remove, update } from '@/src/api/store';
+import { create, getAll, getById, remove, update } from '@/src/api/store';
 
-/** GET /api/todos — list all todos */
-export async function GET(): Promise<Response> {
+/** GET /api/todos — list all todos or get one by ID */
+export async function GET(request: Request): Promise<Response> {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (id) {
+        const record = getById(id);
+        if (!record) return Response.json({ error: 'Not found' }, { status: 404 });
+        return Response.json(record);
+    }
+
     return Response.json(getAll());
 }
 
@@ -9,7 +18,7 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
     const body = await request.json();
     const record = create({
-        id: body.id, // Support client-generated IDs for better offline creation
+        id: body.id,
         title: body.title ?? '',
         body: body.body ?? '',
         is_done: body.is_done ?? false,
@@ -20,14 +29,21 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(record, { status: 201 });
 }
 
-/** PUT /api/todos — update a todo */
+/** PUT /api/todos — full update (compatibility) / upsert */
 export async function PUT(request: Request): Promise<Response> {
     const body = await request.json();
     if (!body.id) return Response.json({ error: 'ID required' }, { status: 400 });
 
     const record = update(body.id, body);
-    if (!record) return Response.json({ error: 'Not found' }, { status: 404 });
+    return Response.json(record);
+}
 
+/** PATCH /api/todos — partial update (granular) / upsert */
+export async function PATCH(request: Request): Promise<Response> {
+    const body = await request.json();
+    if (!body.id) return Response.json({ error: 'ID required' }, { status: 400 });
+
+    const record = update(body.id, body);
     return Response.json(record);
 }
 
