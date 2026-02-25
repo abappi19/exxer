@@ -1,5 +1,5 @@
 import { NetworkManager } from '../network/NetworkManager';
-import { sync } from './SyncService';
+import { manualSyncService } from './ManualSyncService';
 
 /**
  * Orchestrates sync in a network-aware, non-overlapping manner.
@@ -35,11 +35,12 @@ export class SyncOrchestrator {
 
         this._isSyncing = true;
         try {
-            await sync();
+            console.log('[SyncOrchestrator] Starting manual sync...');
+            await manualSyncService.sync();
             this._lastSyncedAt = new Date();
-            console.log('[SyncOrchestrator] Sync completed at', this._lastSyncedAt);
+            console.log('[SyncOrchestrator] Manual sync completed at', this._lastSyncedAt);
         } catch (error) {
-            console.error('[SyncOrchestrator] Sync failed:', error);
+            console.error('[SyncOrchestrator] Manual sync failed:', error);
         } finally {
             this._isSyncing = false;
         }

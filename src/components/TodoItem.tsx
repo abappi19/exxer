@@ -1,7 +1,7 @@
 import { withObservables } from '@nozbe/watermelondb/react';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Todo } from '../db/models';
+import { Todo, TodoSyncStatus } from '../db/models/Todo';
 
 interface TodoItemProps {
     todo: Todo;
@@ -12,6 +12,19 @@ interface TodoItemProps {
 /** A single todo item — reactively updates when the record changes. */
 function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
     const imageUri = todo.imageUri;
+
+    // Map sync status to readable text
+    const getSyncStatusText = (status: TodoSyncStatus) => {
+        switch (status) {
+            case 'synced': return '✓ Synced';
+            case 'created':
+            case 'updated': return '⏳ Pending Sync';
+            case 'deleted': return '🗑 Deleting...';
+            default: return 'Unknown';
+        }
+    };
+
+    const isPending = todo.syncStatus !== 'synced';
 
     return (
         <TouchableOpacity
@@ -30,18 +43,24 @@ function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
                 <Text style={[styles.title, todo.isDone && styles.doneTitle]}>
                     {todo.title}
                 </Text>
+
                 {todo.body ? (
-                    <Text style={styles.body} numberOfLines={2}>
+                    <Text style={styles.body} numberOfLines={1}>
                         {todo.body}
                     </Text>
                 ) : null}
 
-                {/* Image upload status badge */}
-                {todo.imageUploadStatus === 'pending' && (
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>📤 Upload pending</Text>
-                    </View>
-                )}
+                <View style={styles.statusRow}>
+                    {/* Sync Status Badge */}
+                    <Text style={[styles.syncStatus, isPending && styles.syncPending]}>
+                        {getSyncStatusText(todo.syncStatus)}
+                    </Text>
+
+                    {/* Image Status Badge */}
+                    {todo.imageUploadStatus === 'pending' && (
+                        <Text style={styles.imageBadge}> • 📤 Image pending</Text>
+                    )}
+                </View>
             </View>
 
             {imageUri ? (
@@ -104,24 +123,28 @@ const styles = StyleSheet.create({
     body: {
         color: '#8E8E93',
         fontSize: 13,
+        marginTop: 2,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginTop: 4,
     },
-    badge: {
-        marginTop: 6,
-        backgroundColor: '#FF9F0A22',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
-    badgeText: {
-        color: '#FF9F0A',
+    syncStatus: {
         fontSize: 11,
+        color: '#34C759',
         fontWeight: '600',
     },
+    syncPending: {
+        color: '#FF9F0A',
+    },
+    imageBadge: {
+        fontSize: 11,
+        color: '#8E8E93',
+    },
     thumbnail: {
-        width: 48,
-        height: 48,
+        width: 44,
+        height: 44,
         borderRadius: 8,
         marginLeft: 10,
     },
