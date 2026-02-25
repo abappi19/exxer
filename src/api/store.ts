@@ -14,6 +14,8 @@ export interface TodoRecord {
     image_local_uri: string | null;
     image_remote_url: string | null;
     image_upload_status: string;
+    /** Tracked on server for consistency with client manual sync state */
+    manual_sync_status: string;
     created_at: number;
     updated_at: number;
 }
@@ -84,6 +86,7 @@ function seed() {
             image_local_uri: null,
             image_remote_url: null,
             image_upload_status: 'none',
+            manual_sync_status: 'synced',
             created_at: now,
             updated_at: now,
         });
@@ -102,20 +105,30 @@ export function getById(id: string): TodoRecord | undefined {
     return todos.get(id);
 }
 
+/**
+ * Strict Create: 
+ * Fails if ID already exists. Correctly persists all fields.
+ */
 export function create(data: Partial<TodoRecord> & { title: string }): TodoRecord {
     const id = data.id ?? `server_${nextId++}`;
+    if (todos.has(id)) {
+        throw new Error(`Conflict: Todo with ID ${id} already exists`);
+    }
+
     const now = Date.now();
     const record: TodoRecord = {
         id,
         title: data.title,
         body: data.body ?? '',
-        is_done: data.is_done ?? false,
+        is_done: !!data.is_done,
         image_local_uri: data.image_local_uri ?? null,
         image_remote_url: data.image_remote_url ?? null,
         image_upload_status: data.image_upload_status ?? 'none',
-        created_at: now,
-        updated_at: now,
+        manual_sync_status: data.manual_sync_status ?? 'synced',
+        created_at: data.created_at ?? now,
+        updated_at: data.updated_at ?? now,
     };
+
     todos.set(id, record);
     lastModified = now;
     save();
@@ -124,27 +137,18 @@ export function create(data: Partial<TodoRecord> & { title: string }): TodoRecor
 
 /**
  * Update a record by ID.
- * If not found, it performs an upsert to handle demo server restarts.
+ * Strict update: returns null if not found.
  */
-export function update(id: string, data: Partial<TodoRecord>): TodoRecord {
+export function update(id: string, data: Partial<TodoRecord>): TodoRecord | null {
     const existing = todos.get(id);
-    const now = Date.now();
+    if (!existing) return null;
 
-    // Effectively an upsert logic
-    const record: TodoRecord = existing
-        ? { ...existing, ...data, updated_at: now }
-        : {
-            id,
-            title: '',
-            body: '',
-            is_done: false,
-            image_local_uri: null,
-            image_remote_url: null,
-            image_upload_status: 'none',
-            created_at: now,
-            ...data,
-            updated_at: now
-        } as TodoRecord;
+    const now = Date.now();
+    const record: TodoRecord = {
+        ...existing,
+        ...data,
+        updated_at: now
+    };
 
     todos.set(id, record);
     lastModified = now;

@@ -38,20 +38,34 @@ export class ManualSyncService {
             }
 
             const method = status === 'created' ? 'POST' : 'PATCH';
+            const body = {
+                ...todo._raw,
+                manual_sync_status: 'synced', // Tell server it should be synced once saved
+            };
 
             try {
                 const res = await fetch(`${API_BASE}/api/todos`, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(todo._raw),
+                    body: JSON.stringify(body),
                 });
 
-                if (res.ok) {
+                if (res.ok || res.status === 409) {
+                    // Success or item already exists on server (Conflict)
+                    if (res.status === 409) {
+                        console.log(`[ManualSync] Item ${todo.id} already exists on server (409). Marking as synced locally.`);
+                    }
                     await database.write(async () => {
                         await todo.update(record => {
                             record.manualSyncStatus = 'synced';
                             record.syncError = null;
                         });
+                    });
+                } else if (res.status === 404 && method === 'PATCH') {
+                    // Item was deleted from server, so we should delete it locally too
+                    console.log(`[ManualSync] Item ${todo.id} missing from server during PATCH. Deleting locally.`);
+                    await database.write(async () => {
+                        await todo.destroyPermanently();
                     });
                 } else {
                     throw new Error(`Server responded with ${res.status}`);
@@ -73,7 +87,8 @@ export class ManualSyncService {
             const res = await fetch(`${API_BASE}/api/todos?id=${todo.id}`, {
                 method: 'DELETE',
             });
-            if (res.ok) {
+            if (res.ok || res.status === 404) {
+                // If it's already gone from server (404), that's fine too
                 await database.write(async () => {
                     await todo.destroyPermanently();
                 });
@@ -130,7 +145,21 @@ export class ManualSyncService {
     async syncOne(id: string): Promise<void> {
         try {
             const res = await fetch(`${API_BASE}/api/todos?id=${id}`);
-            if (!res.ok) throw new Error('Fetch one failed');
+            if (!res.ok) {
+                if (res.status === 404) {
+                    // Record missing from server, clean up locally
+                    console.log(`[ManualSync] Item ${id} missing from server during SyncOne. Cleanup.`);
+                    const todosCollection = database.get<Todo>('todos');
+                    const localItem = await todosCollection.find(id).catch(() => null);
+                    if (localItem && localItem.syncState === 'synced') {
+                        await database.write(async () => {
+                            await localItem.destroyPermanently();
+                        });
+                    }
+                    return;
+                }
+                throw new Error('Fetch one failed');
+            }
             const serverTodo = await res.json();
             await this.mergeServerData([serverTodo]);
         } catch (e) {
