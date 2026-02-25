@@ -1,50 +1,124 @@
-# Welcome to your Expo app 👋
+# react-native-offline-first-architecture
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A production-ready starter project for building **offline-first React Native apps** with **Expo** and **WatermelonDB**.
 
-## Get started
+## ✨ What's Included
 
-1. Install dependencies
+- **WatermelonDB** — local SQLite database with reactive queries
+- **Native two-phase sync** — pull/push using WatermelonDB's `synchronize()` protocol
+- **In-app API server** — Expo Router API routes (`+api.ts`) with in-memory data store
+- **Offline image upload queue** — pick images offline, auto-upload when online
+- **Network-aware sync** — auto-syncs on reconnect, overlap guards
+- **Auth scaffold** — JWT + Expo SecureStore (no-op for demo, ready for production)
+- **Reactive UI** — `withObservables` for automatic re-renders on data changes
 
-   ```bash
-   npm install
-   ```
+## 🏗 Architecture
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+┌────────────────────────────────────────────────────────────┐
+│  Mobile Client            │  In-App API Server             │
+│  WatermelonDB (SQLite)    │  app/api/todos+api.ts          │
+│  query().observe()        │  app/api/sync/pull+api.ts      │
+│  withObservables()        │  app/api/sync/push+api.ts      │
+│  ─── HTTP sync ──────────►│  app/api/uploads+api.ts        │
+└────────────────────────────────────────────────────────────┘
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 📂 Module Structure
 
-## Learn more
+```
+src/
+├── db/
+│   ├── database.ts         # Database singleton (SQLiteAdapter + JSI)
+│   ├── schema.ts           # appSchema: todos, users
+│   ├── migrations.ts       # Schema version migrations
+│   └── models/
+│       ├── Todo.ts          # @field, @date decorators
+│       └── index.ts
+├── sync/
+│   ├── SyncService.ts      # WatermelonDB synchronize() with pull/push
+│   └── SyncOrchestrator.ts # Network-aware, non-overlapping sync trigger
+├── network/
+│   └── NetworkManager.ts   # NetInfo wrapper
+├── auth/
+│   └── AuthManager.ts      # JWT + SecureStore scaffold
+├── image/
+│   ├── ImageUploadService.ts # Offline upload queue processor
+│   └── useImagePicker.ts    # expo-image-picker hook
+├── hooks/
+│   └── useSync.ts          # { isSyncing, lastSyncedAt, triggerSync }
+├── components/
+│   ├── TodoList.tsx         # withObservables reactive list
+│   └── TodoItem.tsx         # withObservables single item
+└── api/
+    └── store.ts            # In-memory data store (server-side)
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🚀 Getting Started
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Prerequisites
+- Node.js 18+
+- Expo CLI: `npm install -g expo-cli`
+- iOS Simulator (Xcode) or Android Emulator
 
-## Join the community
+### Install & Run
+```bash
+npm install
 
-Join our community of developers creating universal apps.
+# WatermelonDB requires a native build
+npx expo run:ios
+# or
+npx expo run:android
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+> **Note:** `expo start` alone won't work — WatermelonDB requires native modules linked via a full build.
+
+## 🔄 Sync Flow
+
+```
+App starts → syncOrchestrator.triggerSync()
+             ├── POST /api/sync/pull → get changes from server
+             ├── WatermelonDB applies changes to local SQLite
+             ├── POST /api/sync/push → send local mutations to server
+             └── imageUploadService.processPendingUploads()
+                 └── POST /api/uploads (FormData) for each pending image
+```
+
+## 📡 API Endpoints
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/todos` | GET | List all todos |
+| `/api/todos` | POST | Create a todo |
+| `/api/sync/pull` | POST | WatermelonDB pull (returns `{ changes, timestamp }`) |
+| `/api/sync/push` | POST | WatermelonDB push (applies `{ changes }`) |
+| `/api/uploads` | POST | Image upload (multipart FormData) |
+
+## 🔌 Swapping to a Real Backend
+
+Only two files need changes:
+1. **`src/sync/SyncService.ts`** — point `pullChanges` and `pushChanges` URLs to your real API
+2. **`src/image/ImageUploadService.ts`** — point upload URL to your storage endpoint
+
+The WatermelonDB sync protocol contract stays the same.
+
+## 📱 Screens
+
+- **Todos list** — reactive list with sync status bar and FAB
+- **Create todo** — text inputs + image picker with offline queue
+- **Todo detail** — view, toggle done, delete, image with upload status
+
+## 🛠 Tech Stack
+
+| Library | Version | Purpose |
+|---|---|---|
+| Expo SDK | 54 | Framework |
+| React Native | 0.81 | Runtime |
+| WatermelonDB | 0.28 | Offline DB + Sync |
+| NetInfo | 12.x | Network detection |
+| SecureStore | 15.x | Secure token storage |
+| ImagePicker | 16.x | Image selection |
+
+## License
+
+MIT

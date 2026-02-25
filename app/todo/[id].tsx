@@ -1,0 +1,211 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+
+import { database } from '@/src/db/database';
+import { Todo } from '@/src/db/models';
+
+export default function TodoDetailScreen() {
+    const { id } = useLocalSearchParams<{ id: string }>();
+    const router = useRouter();
+    const [todo, setTodo] = useState<Todo | null>(null);
+
+    useEffect(() => {
+        if (!id) return;
+
+        const subscription = database
+            .get<Todo>('todos')
+            .findAndObserve(id)
+            .subscribe({
+                next: (record) => setTodo(record),
+                error: (err) => {
+                    console.error('Todo not found:', err);
+                    router.back();
+                },
+            });
+
+        return () => subscription.unsubscribe();
+    }, [id]);
+
+    if (!todo) {
+        return (
+            <View style={styles.container}>
+                <Text style={styles.loading}>Loading…</Text>
+            </View>
+        );
+    }
+
+    const imageUri = todo.imageUri;
+
+    async function handleToggle() {
+        if (!todo) return;
+        await database.write(async () => {
+            await todo.update((r) => {
+                r.isDone = !r.isDone;
+            });
+        });
+    }
+
+    async function handleDelete() {
+        if (!todo) return;
+        Alert.alert('Delete Todo', 'Are you sure?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    await database.write(async () => {
+                        await todo.markAsDeleted();
+                    });
+                    router.back();
+                },
+            },
+        ]);
+    }
+
+    const uploadBadge =
+        todo.imageUploadStatus === 'pending'
+            ? '📤 Image upload pending (will upload when online)'
+            : todo.imageUploadStatus === 'done'
+                ? '✅ Image uploaded'
+                : null;
+
+    return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+            {/* Status */}
+            <View style={styles.statusRow}>
+                <TouchableOpacity
+                    style={[styles.statusChip, todo.isDone && styles.statusDone]}
+                    onPress={handleToggle}
+                >
+                    <Text style={styles.statusText}>
+                        {todo.isDone ? '✓ Done' : '○ Todo'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Title */}
+            <Text style={styles.title}>{todo.title}</Text>
+
+            {/* Body */}
+            {todo.body ? <Text style={styles.body}>{todo.body}</Text> : null}
+
+            {/* Image */}
+            {imageUri ? (
+                <View style={styles.imageContainer}>
+                    <Image source={{ uri: imageUri }} style={styles.image} />
+                    {uploadBadge && (
+                        <Text style={styles.uploadBadge}>{uploadBadge}</Text>
+                    )}
+                </View>
+            ) : null}
+
+            {/* Timestamps */}
+            <View style={styles.meta}>
+                <Text style={styles.metaText}>
+                    Created: {todo.createdAt.toLocaleString()}
+                </Text>
+                <Text style={styles.metaText}>
+                    Updated: {todo.updatedAt.toLocaleString()}
+                </Text>
+            </View>
+
+            {/* Delete */}
+            <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+                <Text style={styles.deleteText}>Delete Todo</Text>
+            </TouchableOpacity>
+        </ScrollView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    content: {
+        padding: 20,
+        paddingBottom: 60,
+    },
+    loading: {
+        color: '#8E8E93',
+        fontSize: 16,
+        textAlign: 'center',
+        marginTop: 40,
+    },
+    statusRow: {
+        flexDirection: 'row',
+        marginBottom: 16,
+    },
+    statusChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: '#2C2C2E',
+    },
+    statusDone: {
+        backgroundColor: '#34C75930',
+    },
+    statusText: {
+        color: '#F2F2F7',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    title: {
+        color: '#F2F2F7',
+        fontSize: 28,
+        fontWeight: '800',
+        marginBottom: 12,
+    },
+    body: {
+        color: '#AEAEB2',
+        fontSize: 16,
+        lineHeight: 24,
+        marginBottom: 20,
+    },
+    imageContainer: {
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 16,
+    },
+    image: {
+        width: '100%',
+        height: 240,
+    },
+    uploadBadge: {
+        color: '#FF9F0A',
+        fontSize: 12,
+        marginTop: 8,
+        fontStyle: 'italic',
+    },
+    meta: {
+        backgroundColor: '#1C1C1E',
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 24,
+    },
+    metaText: {
+        color: '#636366',
+        fontSize: 12,
+        marginBottom: 4,
+    },
+    deleteButton: {
+        backgroundColor: '#FF3B301A',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+    },
+    deleteText: {
+        color: '#FF3B30',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+});

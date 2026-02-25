@@ -1,24 +1,43 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+// Import database singleton to trigger initialisation on app start
+import '@/src/db/database';
+import { syncOrchestrator } from '@/src/sync/SyncOrchestrator';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  useEffect(() => {
+    // Start listening for network reconnection → auto sync
+    syncOrchestrator.startNetworkListener();
+    // Trigger initial sync on app startup
+    syncOrchestrator.triggerSync();
+
+    return () => {
+      syncOrchestrator.stopNetworkListener();
+    };
+  }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={DarkTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen
+          name="todo/[id]"
+          options={{ presentation: 'card', title: 'Todo Detail' }}
+        />
+        <Stack.Screen
+          name="create"
+          options={{ presentation: 'modal', title: 'New Todo' }}
+        />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="light" />
     </ThemeProvider>
   );
 }
