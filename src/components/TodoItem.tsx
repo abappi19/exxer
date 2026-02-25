@@ -2,6 +2,7 @@ import { withObservables } from '@nozbe/watermelondb/react';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Todo, TodoSyncStatus } from '../db/models/Todo';
+import { manualSyncService } from '../sync/ManualSyncService';
 
 interface TodoItemProps {
     todo: Todo;
@@ -14,7 +15,8 @@ function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
     const imageUri = todo.imageUri;
 
     // Map sync status to readable text
-    const getSyncStatusText = (status: TodoSyncStatus) => {
+    const getSyncStatusText = (status: TodoSyncStatus, hasError: boolean) => {
+        if (hasError) return '✖ Sync Failed';
         switch (status) {
             case 'synced': return '✓ Synced';
             case 'created':
@@ -24,7 +26,8 @@ function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
         }
     };
 
-    const isPending = todo.syncStatus !== 'synced';
+    const isPending = todo.syncStatus !== 'synced' && !todo.syncError;
+    const hasError = !!todo.syncError;
 
     return (
         <TouchableOpacity
@@ -51,10 +54,24 @@ function TodoItemRaw({ todo, onPress, onToggle }: TodoItemProps) {
                 ) : null}
 
                 <View style={styles.statusRow}>
-                    {/* Sync Status Badge */}
-                    <Text style={[styles.syncStatus, isPending && styles.syncPending]}>
-                        {getSyncStatusText(todo.syncStatus)}
-                    </Text>
+                    <View style={styles.statusBadgeContainer}>
+                        <Text style={[
+                            styles.syncStatus,
+                            isPending && styles.syncPending,
+                            hasError && styles.syncError
+                        ]}>
+                            {getSyncStatusText(todo.syncStatus, hasError)}
+                        </Text>
+
+                        {hasError && (
+                            <TouchableOpacity
+                                style={styles.retryButton}
+                                onPress={() => manualSyncService.retryTodo(todo)}
+                            >
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
 
                     {/* Image Status Badge */}
                     {todo.imageUploadStatus === 'pending' && (
@@ -130,6 +147,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 4,
     },
+    statusBadgeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     syncStatus: {
         fontSize: 11,
         color: '#34C759',
@@ -137,6 +158,24 @@ const styles = StyleSheet.create({
     },
     syncPending: {
         color: '#FF9F0A',
+    },
+    syncError: {
+        color: '#FF3B30',
+    },
+    retryButton: {
+        marginLeft: 8,
+        backgroundColor: '#FF3B3020',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#FF3B30',
+    },
+    retryButtonText: {
+        color: '#FF3B30',
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     imageBadge: {
         fontSize: 11,

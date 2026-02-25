@@ -9,11 +9,11 @@ const API_BASE = typeof window !== 'undefined'
 /**
  * REST-based manual sync service.
  * Handles push (mutations) and pull (full refresh) manually.
- * Use this when you don't have a dedicated sync API protocol.
  */
 export class ManualSyncService {
     /**
      * PUSH: Identify local changes and send them to the server.
+     * Captures and persists errors to allow manual retries.
      */
     async push(): Promise<void> {
         const todosCollection = database.get<Todo>('todos');
@@ -28,14 +28,23 @@ export class ManualSyncService {
                     body: JSON.stringify(todo._raw),
                 });
                 if (res.ok) {
-                    // Mark as synced locally
                     await database.write(async () => {
                         await todo.update(record => {
                             (record as any)._status = 'synced';
+                            record.syncError = null;
                         });
                     });
+                } else {
+                    throw new Error(`Server responded with ${res.status}`);
                 }
-            } catch (e) { console.error('[ManualSync] Push Create error:', e); }
+            } catch (e: any) {
+                console.error('[ManualSync] Push Create error:', e);
+                await database.write(async () => {
+                    await todo.update(record => {
+                        record.syncError = e.message || 'Unknown error';
+                    });
+                });
+            }
         }
 
         // 2. Handle Updated
@@ -51,10 +60,20 @@ export class ManualSyncService {
                     await database.write(async () => {
                         await todo.update(record => {
                             (record as any)._status = 'synced';
+                            record.syncError = null;
                         });
                     });
+                } else {
+                    throw new Error(`Server responded with ${res.status}`);
                 }
-            } catch (e) { console.error('[ManualSync] Push Update error:', e); }
+            } catch (e: any) {
+                console.error('[ManualSync] Push Update error:', e);
+                await database.write(async () => {
+                    await todo.update(record => {
+                        record.syncError = e.message || 'Unknown error';
+                    });
+                });
+            }
         }
 
         // 3. Handle Deleted
@@ -65,18 +84,34 @@ export class ManualSyncService {
                     method: 'DELETE',
                 });
                 if (res.ok) {
-                    // Permanently remove from local DB
                     await database.write(async () => {
                         await todo.destroyPermanently();
                     });
+                } else {
+                    throw new Error(`Server responded with ${res.status}`);
                 }
-            } catch (e) { console.error('[ManualSync] Push Delete error:', e); }
+            } catch (e: any) {
+                console.error('[ManualSync] Push Delete error:', e);
+                // Can't easily show error for deleted items in list, but we log it
+            }
         }
     }
 
     /**
+     * Retries sync for a specific record.
+     */
+    async retryTodo(todo: Todo): Promise<void> {
+        // Clear error first to show "pending" state in UI
+        await database.write(async () => {
+            await todo.update(record => {
+                record.syncError = null;
+            });
+        });
+        await this.push();
+    }
+
+    /**
      * PULL: Fetch all todos from the server and merge them.
-     * Simple "Server Wins" strategy for this demo.
      */
     async pull(): Promise<void> {
         try {

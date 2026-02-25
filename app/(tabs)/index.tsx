@@ -24,7 +24,8 @@ export default function TodosScreen() {
         record.isDone = !record.isDone;
       });
     });
-  }, []);
+    triggerSync();
+  }, [triggerSync]);
 
   const syncText = isSyncing
     ? '⟳ Syncing…'

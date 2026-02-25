@@ -27,12 +27,6 @@ export class SyncOrchestrator {
             return;
         }
 
-        const online = await NetworkManager.isOnline();
-        if (!online) {
-            console.log('[SyncOrchestrator] Offline, skipping sync');
-            return;
-        }
-
         this._isSyncing = true;
         try {
             console.log('[SyncOrchestrator] Starting manual sync...');

@@ -13,12 +13,16 @@ export class Todo extends Model {
     @field('image_local_uri') imageLocalUri!: string | null;
     @field('image_remote_url') imageRemoteUrl!: string | null;
     @field('image_upload_status') imageUploadStatus!: 'none' | 'pending' | 'done';
+    @field('sync_error') syncError!: string | null;
     @date('created_at') createdAt!: Date;
     @date('updated_at') updatedAt!: Date;
 
-    /** Expose WatermelonDB's internal sync status ('synced' | 'created' | 'updated' | 'deleted') */
+    /** 
+     * Expose WatermelonDB's internal sync status.
+     * Note: We access this via _raw to ensure we get the latest value.
+     */
     get syncStatus(): TodoSyncStatus {
-        return (this as any)._status;
+        return (this._raw as any)._status || 'synced';
     }
 
     /** Resolved image URI — prefers remote URL, falls back to local. */

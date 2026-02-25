@@ -12,6 +12,8 @@ import {
 
 import { database } from '@/src/db/database';
 import { Todo } from '@/src/db/models';
+import { imageUploadService } from '@/src/image/ImageUploadService';
+import { syncOrchestrator } from '@/src/sync/SyncOrchestrator';
 
 export default function TodoDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,6 +54,8 @@ export default function TodoDetailScreen() {
                 r.isDone = !r.isDone;
             });
         });
+        syncOrchestrator.triggerSync();
+        imageUploadService.processPendingUploads();
     }
 
     async function handleDelete() {
@@ -65,6 +69,7 @@ export default function TodoDetailScreen() {
                     await database.write(async () => {
                         await todo.markAsDeleted();
                     });
+                    syncOrchestrator.triggerSync();
                     router.back();
                 },
             },
